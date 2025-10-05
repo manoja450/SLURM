@@ -9,6 +9,9 @@
 #SBATCH --mem=16G
 #SBATCH --array=1-1000%100  # Adjust range and concurrency limit
 
+# Load ROOT environment (if needed)
+source /path/to/root/bin/thisroot.sh  # Replace with actual path to ROOT setup script
+
 # Define base path
 BASE_PATH="/data41/coherent/data/d2o/processedData"
 
@@ -35,10 +38,10 @@ if [ ! -f "$calib_file" ]; then
     exit 1
 fi
 
-# Convert date range to Unix timestamps
+# Convert date range to Unix timestamps (assuming CDT, UTC-5)
 if [ -n "$START_DATE" ] && [ -n "$END_DATE" ]; then
-    start_ts=$(date -ud "$START_DATE" +%s 2>/dev/null)
-    end_ts=$(date -ud "$END_DATE" +%s 2>/dev/null)
+    start_ts=$(date -d "$START_DATE -5 hours" +%s 2>/dev/null)
+    end_ts=$(date -d "$END_DATE -5 hours" +%s 2>/dev/null)
     if [ $? -ne 0 ] || [ -z "$start_ts" ] || [ -z "$end_ts" ]; then
         echo "Error: Invalid START_DATE or END_DATE format (use YYYY-MM-DD)"
         exit 1
