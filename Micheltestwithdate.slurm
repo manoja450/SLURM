@@ -1,23 +1,22 @@
 #!/bin/bash
 #SBATCH --job-name=michel_analysis
-#SBATCH --output=michel_output_%A_%a.txt
-#SBATCH --error=michel_error_%A_%a.txt
-#SBATCH --time=24:00:00
+#SBATCH --output=michel_output.txt
+#SBATCH --error=michel_error.txt
+#SBATCH --time=72:00:00  # Adjust based on file count and runtime
 #SBATCH --partition=longjobs
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=16G
-#SBATCH --array=1-1000%100  # Adjust range and concurrency limit
+#SBATCH --mem=32G  # Increased for multiple files
 
-# Load ROOT environment (if needed)
-source /path/to/root/bin/thisroot.sh  # Replace with actual path to ROOT setup script
+# Load ROOT environment
+source /path/to/root/bin/thisroot.sh  # Replace with actual ROOT path, e.g., /usr/local/root/bin/thisroot.sh
 
 # Define base path
 BASE_PATH="/data41/coherent/data/d2o/processedData"
 
 # Log job details
 echo "Running on node $(hostname)"
-echo "Job ID: $SLURM_JOB_ID, Array Task ID: $SLURM_ARRAY_TASK_ID"
+echo "Job ID: $SLURM_JOB_ID"
 echo "Current working directory: $(pwd)"
 echo "Starting job at: $(date)"
 
@@ -37,8 +36,9 @@ if [ ! -f "$calib_file" ]; then
     echo "Error: Calibration file $calib_file not found"
     exit 1
 fi
+input_files=("$calib_file")
 
-# Convert date range to Unix timestamps (assuming CDT, UTC-5)
+# Convert date range to Unix timestamps (assuming CDT for input, UTC for starttime)
 if [ -n "$START_DATE" ] && [ -n "$END_DATE" ]; then
     start_ts=$(date -d "$START_DATE -5 hours" +%s 2>/dev/null)
     end_ts=$(date -d "$END_DATE -5 hours" +%s 2>/dev/null)
@@ -54,33 +54,47 @@ fi
 # Get all potential data files
 data_files=($(find "$BASE_PATH" -type f -name 'run*_processed_v5.root' ! -name 'run17951_processed_v5.root' 2>/dev/null | sort))
 
-# Check if files exist and task ID is valid
+# Filter files by date range
 if [ ${#data_files[@]} -eq 0 ]; then
     echo "Error: No data files found in $BASE_PATH"
     exit 1
 fi
-if [ $SLURM_ARRAY_TASK_ID -gt ${#data_files[@]} ]; then
-    echo "Array task ID $SLURM_ARRAY_TASK_ID exceeds number of files (${#data_files[@]})"
-    exit 0
-fi
-file="${data_files[$((SLURM_ARRAY_TASK_ID - 1))]}"
 
-# Check file's run start time if date range is specified
-if [ -n "$start_ts" ] && [ -n "$end_ts" ]; then
-    run_ts=$("./get_run_time" "$file" | grep "Run Start Time (Unix Timestamp)" | awk '{print $5}')
-    if [ -z "$run_ts" ] || ! [[ "$run_ts" =~ ^[0-9]+$ ]]; then
-        echo "Warning: Could not retrieve valid timestamp from $file, skipping"
-        exit 0
+for file in "${data_files[@]}"; do
+    if [ -n "$start_ts" ] && [ -n "$end_ts" ]; then
+        run_ts=$("./get_run_time" "$file" | grep "Run Start Time (Unix Timestamp)" | awk '{print $5}')
+        if [ -z "$run_ts" ] || ! [[ "$run_ts" =~ ^[0-9]+$ ]]; then
+            echo "Warning: Could not retrieve valid timestamp from $file, skipping"
+            continue
+        fi
+        if [ "$run_ts" -lt "$start_ts" ] || [ "$run_ts" -ge "$end_ts" ]; then
+            echo "File $file timestamp ($run_ts) outside range, skipping"
+            continue
+        fi
     fi
-    if [ "$run_ts" -lt "$start_ts" ] || [ "$run_ts" -ge "$end_ts" ]; then
-        echo "File $file timestamp ($run_ts) outside range, skipping"
-        exit 0
-    fi
+    input_files+=("$file")
+done
+
+if [ ${#input_files[@]} -lt 2 ]; then
+    echo "Error: Insufficient input files (need calibration + at least one data file)"
+    echo "Found files:"
+    for file in "${input_files[@]}"; do
+        echo "  $file"
+    done
+    exit 1
 fi
+
+# Print input files
+echo "Input files to process:"
+echo "  Calibration file: ${input_files[0]}"
+echo "  Data files:"
+for ((i=1; i<${#input_files[@]}; i++)); do
+    echo "    ${input_files[$i]}"
+done
 
 # Run analysis
-echo "Executing: ./Micheltestwithdate $calib_file $file"
-./Micheltestwithdate "$calib_file" "$file"
+echo "Executing: ./Micheltestwithdate ${input_files[@]}"
+./Micheltestwithdate "${input_files[@]}"
 exit_code=$?
 if [ $exit_code -ne 0 ]; then
     echo "Error: Micheltestwithdate failed with exit code $exit_code"
