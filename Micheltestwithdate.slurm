@@ -1,82 +1,48 @@
 #!/bin/bash
-#SBATCH --job-name=michel_analysis
+#SBATCH --job-name=Myjob
 #SBATCH --output=michel_output.txt
 #SBATCH --error=michel_error.txt
-#SBATCH --time=72:00:00  # Adjust based on file count and runtime
+#SBATCH --time=1000:00:00
 #SBATCH --partition=longjobs
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=32G  # Increased for multiple files
+#SBATCH --cpus-per-task=100
+#SBATCH --mem=30G
 
-# Load ROOT environment
-source /path/to/root/bin/thisroot.sh  # Replace with actual ROOT path, e.g., /usr/local/root/bin/thisroot.sh
-
-# Define base path
+# Define base path for input files
+#BASE_PATH="/data41/coherent/data/d2o/processedData"
 BASE_PATH="/data41/coherent/data/d2o/processedData"
-
 # Log job details
 echo "Running on node $(hostname)"
 echo "Job ID: $SLURM_JOB_ID"
 echo "Current working directory: $(pwd)"
 echo "Starting job at: $(date)"
 
-# Verify executables
-if [ ! -f "./Micheltestwithdate" ]; then
-    echo "Error: Micheltestwithdate executable not found in $(pwd)"
-    exit 1
-fi
-if [ ! -f "./get_run_time" ]; then
-    echo "Error: get_run_time executable not found in $(pwd)"
+# Verify executable
+if [ ! -f "./Myjob" ]; then
+    echo "Error: NewTest executable not found in $(pwd)"
     exit 1
 fi
 
-# Calibration file
-calib_file="${BASE_PATH}/run17951_processed_v5.root"
-if [ ! -f "$calib_file" ]; then
-    echo "Error: Calibration file $calib_file not found"
-    exit 1
-fi
-input_files=("$calib_file")
-
-# Convert date range to Unix timestamps (assuming CDT for input, UTC for starttime)
-if [ -n "$START_DATE" ] && [ -n "$END_DATE" ]; then
-    start_ts=$(date -d "$START_DATE -5 hours" +%s 2>/dev/null)
-    end_ts=$(date -d "$END_DATE -5 hours" +%s 2>/dev/null)
-    if [ $? -ne 0 ] || [ -z "$start_ts" ] || [ -z "$end_ts" ]; then
-        echo "Error: Invalid START_DATE or END_DATE format (use YYYY-MM-DD)"
-        exit 1
+# Define input files
+input_files=()
+# Add all files in the desired order: 17595 first, then 17955-17980
+for run in 17951 {17951..17974}; do   #octdata1day2024
+#for run in 17951 {17934..18677}; do #oct 2024 one month
+#for run in 17951 {18678..19398}; do   #Nov 2024 one month
+#for run in 17951 {23143..23855}; do    #June2025
+#for run in 17951 {21698..22417}; do    #apr2025
+#for run in 17951 {22418..23143}; do     #may2025
+#for run in 17951 {23143..24617}; do      #june+july 2025
+    file="${BASE_PATH}/run${run}_processed_v5.root"
+    if [ -f "$file" ]; then
+        input_files+=("$file")
+    else
+        echo "Warning: File $file not found, skipping"
     fi
-    echo "Selecting files with run start time between $START_DATE ($start_ts) and $END_DATE ($end_ts)"
-else
-    echo "No date range provided; using all available files"
-fi
-
-# Get all potential data files
-data_files=($(find "$BASE_PATH" -type f -name 'run*_processed_v5.root' ! -name 'run17951_processed_v5.root' 2>/dev/null | sort))
-
-# Filter files by date range
-if [ ${#data_files[@]} -eq 0 ]; then
-    echo "Error: No data files found in $BASE_PATH"
-    exit 1
-fi
-
-for file in "${data_files[@]}"; do
-    if [ -n "$start_ts" ] && [ -n "$end_ts" ]; then
-        run_ts=$("./get_run_time" "$file" | grep "Run Start Time (Unix Timestamp)" | awk '{print $5}')
-        if [ -z "$run_ts" ] || ! [[ "$run_ts" =~ ^[0-9]+$ ]]; then
-            echo "Warning: Could not retrieve valid timestamp from $file, skipping"
-            continue
-        fi
-        if [ "$run_ts" -lt "$start_ts" ] || [ "$run_ts" -ge "$end_ts" ]; then
-            echo "File $file timestamp ($run_ts) outside range, skipping"
-            continue
-        fi
-    fi
-    input_files+=("$file")
 done
 
 if [ ${#input_files[@]} -lt 2 ]; then
-    echo "Error: Insufficient input files (need calibration + at least one data file)"
+    echo "Error: Insufficient input files found (need at least calibration and one data file)"
     echo "Found files:"
     for file in "${input_files[@]}"; do
         echo "  $file"
@@ -92,16 +58,18 @@ for ((i=1; i<${#input_files[@]}; i++)); do
     echo "    ${input_files[$i]}"
 done
 
-# Run analysis
-echo "Executing: ./Micheltestwithdate ${input_files[@]}"
-./Micheltestwithdate "${input_files[@]}"
+# Run the analysis (first file is calibration, rest are data files)
+echo "Executing: ./Micheltest ${input_files[@]}"
+./Micheltest "${input_files[@]}"
 exit_code=$?
+
+# Check if the program ran successfully
 if [ $exit_code -ne 0 ]; then
-    echo "Error: Micheltestwithdate failed with exit code $exit_code"
+    echo "Error: Micheltest failed with exit code $exit_code"
     exit $exit_code
 fi
 
-# Verify output directory
+# Verify output directory (find the latest AnalysisOutput_* directory)
 output_dir=$(ls -td ./AnalysisOutput_* 2>/dev/null | head -n 1)
 if [ -n "$output_dir" ] && [ -d "$output_dir" ]; then
     echo "Output saved in $(pwd)/$output_dir"
@@ -111,3 +79,26 @@ else
 fi
 
 echo "Job finished at: $(date)"
+~
+
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+                                                                                                             
