@@ -6,3 +6,10 @@ g++ -O3 -march=native -std=c++17 withMichelFitAndStoreResultsinRootfileMODULE2.c
    Submit with sbatch Micheltest.slurm
    
 Monitor with squeue and tail -f michel_output.txt
+
+
+
+SUBMIT G4D2O SUMULATION JOB IN CLSUTER
+
+sbatch submit_slurm.sh
+
